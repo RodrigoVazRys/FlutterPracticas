@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:safe_device/safe_device.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 void main() {
   runApp(const MyApp());
@@ -26,8 +29,164 @@ class MyApp extends StatelessWidget {
           tertiary: guindaInstitucional,
         ),
       ),
+      builder: (context, child) {
+        return SecurityWrapper(child: child!);
+      },
       home: const LoginScreen(),
     );
+  }
+}
+
+class SecurityWrapper extends StatefulWidget {
+  final Widget child;
+  const SecurityWrapper({super.key, required this.child});
+
+  @override
+  State<SecurityWrapper> createState() => _SecurityWrapperState();
+}
+
+class _SecurityWrapperState extends State<SecurityWrapper> with WidgetsBindingObserver {
+  bool _isChecking = true;
+  bool _isFakeGps = false;
+  bool _sinPermisoUbicacion = false;
+  Timer? _timer;
+
+  static const platform = MethodChannel('com.kazedev.app/security');
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _verificarFakeGps();
+    _timer = Timer.periodic(const Duration(seconds: 3), (_) => _verificarFakeGps());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _isChecking = true;
+      _verificarFakeGps();
+    }
+  }
+
+  Future<void> _verificarFakeGps() async {
+    try {
+      var status = await Permission.location.request();
+      if (!status.isGranted) {
+        setState(() {
+          _sinPermisoUbicacion = true;
+          _isFakeGps = false;
+          _isChecking = false;
+        });
+        return;
+      }
+
+      bool pluginMock = await SafeDevice.isMockLocation;
+
+      bool nativeMock = false;
+      try {
+        nativeMock = await platform.invokeMethod('isMockLocation');
+      } catch (e) {
+        debugPrint("Método nativo de ubicación no encontrado");
+      }
+
+      setState(() {
+        _sinPermisoUbicacion = false;
+        _isFakeGps = pluginMock || nativeMock;
+        _isChecking = false;
+      });
+    } catch (e) {
+      debugPrint("Error verificando Fake GPS: $e");
+      setState(() {
+        _isChecking = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isChecking) {
+      return const Directionality(
+        textDirection: TextDirection.ltr,
+        child: Material(
+          color: MyApp.verdeInstitucional,
+          child: Center(
+            child: CircularProgressIndicator(color: Colors.white),
+          ),
+        ),
+      );
+    }
+
+    if (_sinPermisoUbicacion) {
+      return const Directionality(
+        textDirection: TextDirection.ltr,
+        child: Material(
+          color: MyApp.guindaInstitucional,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.location_disabled, size: 100, color: Colors.white),
+                SizedBox(height: 20),
+                Text(
+                  'Permiso Requerido',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                SizedBox(height: 10),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 30),
+                  child: Text(
+                    'Para garantizar tu seguridad, necesitamos el permiso de ubicación.\nEsto nos permite verificar que no se usen ubicaciones falsas.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white70, fontSize: 16),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_isFakeGps) {
+      return const Directionality(
+        textDirection: TextDirection.ltr,
+        child: Material(
+          color: MyApp.guindaInstitucional,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.location_off, size: 100, color: Colors.white),
+                SizedBox(height: 20),
+                Text(
+                  '¡Acceso Denegado!',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                SizedBox(height: 10),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 30),
+                  child: Text(
+                    'Se ha detectado el uso de un Fake GPS o ubicación simulada.\nPor seguridad, la aplicación no puede ejecutarse.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white70, fontSize: 16),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return widget.child;
   }
 }
 
@@ -62,7 +221,6 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _actualizarSeguridadPantalla(bool activar) async {
     try {
       await platform.invokeMethod('toggleSecure', activar);
-      debugPrint("✅ Bandera de seguridad FLAG_SECURE actualizada a: $activar");
     } catch (e) {
       debugPrint("⚠️ ERROR CRÍTICO: No se encontró el canal nativo. Detalle: $e");
     }

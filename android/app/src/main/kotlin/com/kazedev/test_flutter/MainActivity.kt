@@ -6,7 +6,6 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity: FlutterActivity() {
-    // ¡AQUÍ ESTABA EL DETALLE! Ahora este canal es idéntico al de tu main.dart
     private val CHANNEL = "com.kazedev.app/security"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -16,7 +15,6 @@ class MainActivity: FlutterActivity() {
             if (call.method == "toggleSecure") {
                 val isSecure = call.arguments as Boolean
 
-                // Forzamos la ejecución en el hilo principal para HyperOS/MIUI
                 runOnUiThread {
                     if (isSecure) {
                         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
