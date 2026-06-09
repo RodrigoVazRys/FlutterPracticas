@@ -43,3 +43,13 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/serviceAccountKey.json
+/android/app/google-services.json
+/firebase.json
+/android/app/src/main/res/drawable/confirmo.jpeg
+/send_order_66.py
+/lib/firebase_options.dart
+/ios/Runner/GoogleService-Info.plist
+
+/requirements.txt
+/firepit-log.txt
